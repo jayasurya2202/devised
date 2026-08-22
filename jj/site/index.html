@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>__REPO_NAME__ — __BRANCH_NAME__</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --accent: #3fb950;
+      --card: #161b22;
+      --border: #30363d;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --fg: #1f2328;
+        --muted: #57606a;
+        --accent: #1a7f37;
+        --card: #f6f8fa;
+        --border: #d0d7de;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .card {
+      max-width: 560px;
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 1.5rem;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+    }
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 16px;
+      margin: 0;
+      font-size: 0.9rem;
+    }
+    dt { color: var(--muted); }
+    dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .footer {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>__REPO_NAME__</h1>
+    <div class="status">Pipeline passed</div>
+    <dl>
+      <dt>Branch</dt><dd>__BRANCH_NAME__</dd>
+      <dt>Commit</dt><dd>__COMMIT_SHA__</dd>
+      <dt>Deployed</dt><dd>__DEPLOY_TIME__</dd>
+    </dl>
+    <div class="footer">
+      Built by the DevSecOps pipeline: unit tests → security scan →
+      Docker image scan, all clean, before this page was published.
+    </div>
+  </div>
+</body>
+</html>

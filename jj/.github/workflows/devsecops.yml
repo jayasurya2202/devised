@@ -2,7 +2,7 @@ name: DevSecOps Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
     branches: [main]
 
@@ -113,3 +113,33 @@ jobs:
         run: echo "Deploying ${IMAGE_NAME}:${IMAGE_TAG}..."
         # Replace with your real deployment step (e.g. push to registry,
         # kubectl apply, terraform apply, etc.)
+
+  deploy-pages:
+    name: Deploy GitHub Pages (branch preview)
+    needs: docker-image-scan
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare site content
+        run: |
+          mkdir -p dist
+          cp -r site/. dist/
+          sed -i \
+            -e "s/__REPO_NAME__/${{ github.event.repository.name }}/g" \
+            -e "s#__BRANCH_NAME__#${{ github.ref_name }}#g" \
+            -e "s/__COMMIT_SHA__/${{ github.sha }}/g" \
+            -e "s/__DEPLOY_TIME__/$(date -u +'%Y-%m-%dT%H:%M:%SZ')/g" \
+            dist/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ env.PROJECT_DIR }}/dist
+          destination_dir: ${{ github.ref_name }}
+          keep_files: true
