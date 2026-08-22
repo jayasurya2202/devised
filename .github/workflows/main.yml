@@ -1,0 +1,178 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+env:
+  IMAGE_NAME: ${{ github.event.repository.name }}
+  IMAGE_TAG: ${{ github.sha }}
+  PROJECT_DIR: jj
+
+defaults:
+  run:
+    working-directory: jj
+
+jobs:
+  unit-tests-python:
+    name: Unit Tests (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: pytest --junitxml=pytest-report.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: ${{ env.PROJECT_DIR }}/pytest-report.xml
+
+  unit-tests-node:
+    name: Unit Tests (Node.js)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run unit tests
+        run: npm test
+
+  security-scan:
+    name: Security Scan (source & dependencies)
+    needs: [unit-tests-python, unit-tests-node]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ env.PROJECT_DIR }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          format: table
+
+  docker-image-scan:
+    name: Docker Image Scan
+    needs: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" .
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          format: table
+          ignore-unfixed: true
+
+  deploy:
+    name: Deploy
+    needs: docker-image-scan
+    runs-on: ubuntu-latest
+    # This job is only reached if unit tests passed and both Trivy scans
+    # found no CRITICAL/HIGH vulnerabilities — any finding fails the
+    # upstream job and GitHub Actions skips this one automatically.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${IMAGE_NAME}:${IMAGE_TAG}..."
+        # Replace with your real deployment step (e.g. push to registry,
+        # kubectl apply, terraform apply, etc.)
+
+  deploy-pages:
+    name: Deploy GitHub Pages (branch preview)
+    needs: docker-image-scan
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare site content
+        run: |
+          mkdir -p dist
+          cp -r site/. dist/
+          sed -i \
+            -e "s/__REPO_NAME__/${{ github.event.repository.name }}/g" \
+            -e "s#__BRANCH_NAME__#${{ github.ref_name }}#g" \
+            -e "s/__COMMIT_SHA__/${{ github.sha }}/g" \
+            -e "s/__DEPLOY_TIME__/$(date -u +'%Y-%m-%dT%H:%M:%SZ')/g" \
+            dist/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ env.PROJECT_DIR }}/dist
+          destination_dir: ${{ github.ref_name }}
+          keep_files: true
+
+      - name: Checkout current gh-pages state
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: ${{ env.PROJECT_DIR }}/gh-pages-checkout
+
+      - name: Build root main.html (branch index)
+        run: |
+          mkdir -p root-page
+          {
+            echo "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+            echo "<title>${{ github.event.repository.name }} — Branches</title>"
+            echo "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            echo "</head><body>"
+            echo "<h1>${{ github.event.repository.name }}</h1>"
+            echo "<p>Branch previews:</p><ul>"
+            find gh-pages-checkout -mindepth 2 -name index.html -not -path '*/.git/*' \
+              | sed -e 's|^gh-pages-checkout/||' -e 's|/index.html$||' \
+              | sort \
+              | while read -r name; do
+                  echo "<li><a href=\"./$name/\">$name</a></li>"
+                done
+            echo "</ul></body></html>"
+          } > root-page/main.html
+
+      - name: Publish root main.html
+        uses: peaceiris/actions-gh-pages@v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ env.PROJECT_DIR }}/root-page
+          destination_dir: .
+          keep_files: true
