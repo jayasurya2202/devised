@@ -143,3 +143,36 @@ jobs:
           publish_dir: ${{ env.PROJECT_DIR }}/dist
           destination_dir: ${{ github.ref_name }}
           keep_files: true
+
+      - name: Checkout current gh-pages state
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: ${{ env.PROJECT_DIR }}/gh-pages-checkout
+
+      - name: Build root main.html (branch index)
+        run: |
+          mkdir -p root-page
+          {
+            echo "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+            echo "<title>${{ github.event.repository.name }} — Branches</title>"
+            echo "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            echo "</head><body>"
+            echo "<h1>${{ github.event.repository.name }}</h1>"
+            echo "<p>Branch previews:</p><ul>"
+            find gh-pages-checkout -mindepth 2 -name index.html -not -path '*/.git/*' \
+              | sed -e 's|^gh-pages-checkout/||' -e 's|/index.html$||' \
+              | sort \
+              | while read -r name; do
+                  echo "<li><a href=\"./$name/\">$name</a></li>"
+                done
+            echo "</ul></body></html>"
+          } > root-page/main.html
+
+      - name: Publish root main.html
+        uses: peaceiris/actions-gh-pages@v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ env.PROJECT_DIR }}/root-page
+          destination_dir: .
+          keep_files: true
