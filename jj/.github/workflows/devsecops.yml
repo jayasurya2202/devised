@@ -11,8 +11,8 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
-  unit-tests:
-    name: Unit Tests
+  unit-tests-python:
+    name: Unit Tests (Python)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -38,9 +38,27 @@ jobs:
           name: pytest-report
           path: pytest-report.xml
 
+  unit-tests-node:
+    name: Unit Tests (Node.js)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run unit tests
+        run: npm test
+
   security-scan:
     name: Security Scan (source & dependencies)
-    needs: unit-tests
+    needs: [unit-tests-python, unit-tests-node]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
